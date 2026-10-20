@@ -1,0 +1,41 @@
+First you must create a .venv virtual enviornment which i think you can see inside this folder but it's not running in your PC because directories are different and may be your VS code don't have the libraries which needed....
+ 
+1. first check python version: 
+code: 
+python --version
+in terminal of VS code
+if you have then OK 
+if you don't have then need to install.
+
+
+2. Open VS Code new Terminal and navigate to your extracted project folder:
+something like this
+code:
+cd "E:\CDAC BENGALORE\Project\AI-powered stock market analysis and prediction"
+
+
+3. Create a Virtual Enviornment under that directory which can run your libraries:
+code:
+py -3.13 -m venv .venv
+
+4. Activate it
+Use Command Prompt instead
+If you don't want to change PowerShell's execution policy:
+1. Open the VS Code terminal.
+2. Click the dropdown arrow next to the + icon.
+3. Select Command Prompt.
+4. Run:
+cd /d "E:\CDAC BENGALORE\Project\AI-powered stock market analysis and prediction"
+then:
+.venv\Scripts\activate.bat
+
+
+5.Install the project dependencies:
+code:
+python -m pip install --upgrade pip
+then:
+pip install -r requirements.txt
+
+
+6. Then run your project using its appropriate entry point, for example:
+streamlit run app.py

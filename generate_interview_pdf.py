@@ -1,0 +1,210 @@
+"""
+Generates a professional PDF of ~100 interviewer-style questions
+based on the AI-Driven Stock Screener (NSE 500) project.
+"""
+from fpdf import FPDF
+
+OUT_PATH = "INTERVIEW_QUESTIONS.pdf"
+
+# (Theme, [questions])
+DATA = [
+    ("1. Project Overview & Architecture", [
+        "1. What is the primary purpose of this project, and what problem does it solve?",
+        "2. Walk me through the end-to-end data flow from stock list to final ranked output.",
+        "3. What are the main Python modules and their responsibilities in this codebase?",
+        "4. Describe the overall architecture. Is it layered? How are the layers separated?",
+        "5. Why did you choose Streamlit for the UI layer? What are its strengths and limitations?",
+        "6. How does the concept of a 'universe' of 500 stocks work, and why is it important?",
+        "7. What would happen if one module (e.g. news_fetcher) fails? Does the whole app crash?",
+        "8. How does the app decide between ML-based scoring and a deterministic fallback?",
+        "9. What design patterns or principles (e.g. separation of concerns, OOP) are used here?",
+        "10. If you were to redesign this system from scratch, what would you do differently?",
+    ]),
+    ("2. Data Fetching & Processing", [
+        "11. How does DataFetcher load the stock universe, and what happens if the CSV is missing?",
+        "12. What data does the yfinance library return, and how is it normalized/standardized?",
+        "13. Why does fetch_historical_ohlcv reset the DataFrame index? What columns must be present?",
+        "14. What are the default fundamental metrics, and why are they used as safe fallbacks?",
+        "15. How are missing or invalid fundamental values handled?",
+        "16. What is the role of the 'period' parameter, and how does it affect the data fetched?",
+        "17. How would you handle API rate limiting when fetching data for 500 tickers?",
+        "18. What potential data quality issues exist with yfinance data, and how would you mitigate them?",
+        "19. Why is a sequential fetch loop potentially a bottleneck? How could you parallelize it?",
+        "20. How would you cache fetched data to disk to avoid re-hitting the API on every run?",
+    ]),
+    ("3. Feature Engineering & Technical Indicators", [
+        "21. What technical indicators does IndicatorEngine compute, and why these specific ones?",
+        "22. Explain how RSI is calculated and what it signals. What does an RSI of 50 mean?",
+        "23. What is the MACD, and what do its three components (MACD, Signal, Histogram) represent?",
+        "24. How are Bollinger Bands constructed, and how is the BB_Position feature derived?",
+        "25. What does the SMA_Ratio feature represent, and how is it a 'trend' signal?",
+        "26. How is the Volume_Trend feature calculated, and why use a 5-day vs 20-day average?",
+        "27. What happens in compute_technical_indicators when there are fewer than 200 rows?",
+        "28. Why are default values like RSI=50 and MACD=0 injected for short histories?",
+        "29. How does extract_current_features build the final feature vector from the last row?",
+        "30. How is look-ahead bias avoided when computing features at each point in time?",
+        "31. Which features are technical, which are fundamental, and which are news-based?",
+        "32. How would you handle division by zero when computing BB_Position or SMA_Ratio?",
+    ]),
+    ("4. Machine Learning & Model Training", [
+        "33. What type of model is used, and why was RandomForestClassifier chosen?",
+        "34. How is the training data generated? Explain the walk-forward labeling approach.",
+        "35. What is the label in this supervised learning problem, and how is it derived?",
+        "36. How does forward_days affect the label definition? What trade-offs exist?",
+        "37. What is the purpose of the sample_stride parameter, and what problem does it solve?",
+        "38. Why does the code skip the first 200 rows during training?",
+        "39. How is the train/test split performed, and why use stratification?",
+        "40. What is class imbalance, and how does class_weight='balanced' address it?",
+        "41. What metrics are reported (accuracy, ROC-AUC)? Why might accuracy be misleading here?",
+        "42. Why is the model refit on the full dataset after evaluation? Is that a good practice?",
+        "43. What hyperparameters are used (n_estimators, max_depth, min_samples_leaf)? Why?",
+        "44. How does the feature schema stay consistent between training and inference?",
+        "45. What is the risk of news features being all-zero during training? How is it handled?",
+        "46. How does AIScorer convert model probabilities into a 0-100 score?",
+        "47. What happens if predict_proba fails? What fallback score is returned?",
+        "48. How would you evaluate this model's real-world predictive value? What are its limits?",
+    ]),
+    ("5. News & Sentiment Analysis", [
+        "49. Where does the news data come from, and what API key is required?",
+        "50. How does NewsFetcher guarantee it never crashes the main pipeline?",
+        "51. What happens if no API key is set? What feature values are returned?",
+        "52. Explain the news sentiment normalization logic (handling 0-100 vs -1 to 1 scales).",
+        "53. How is recency weighting computed from the published_at timestamp?",
+        "54. What is the difference between News_Sentiment_Avg and News_Sentiment_Weighted?",
+        "55. How is News_Count_24h calculated, and why limit to 24 hours?",
+        "56. What are the five news features, and how might they influence the final score?",
+        "57. Why does the model_trainer use neutral defaults for news rather than real data?",
+        "58. What are the risks of using news sentiment in a trading signal?",
+    ]),
+    ("6. Streamlit UI, Caching & Performance", [
+        "59. How does st.cache_data improve performance, and what is the TTL set to?",
+        "60. What is the purpose of the force_refresh checkbox, and how does it clear the cache?",
+        "61. How does the app limit the number of tickers processed, and why?",
+        "62. Explain the use of st.progress for the pipeline. How is its value clamped?",
+        "63. How are the sidebar filters (sector, AI score, P/E, growth) applied to the DataFrame?",
+        "64. How does the market cap category filter (Large/Mid/Small) work?",
+        "65. What Plotly visualizations are rendered, and what do SMA 50/200 overlays show?",
+        "66. Why does the chart section fall back from '6m' to '1y' period data?",
+        "67. How is the CSV export functionality implemented? What encoding is used?",
+        "68. How would you optimize the app if it takes too long to process 500 tickers?",
+    ]),
+    ("7. Error Handling & Edge Cases", [
+        "69. List the key places where exceptions are caught and gracefully handled.",
+        "70. What happens if fetch_historical_ohlcv returns fewer than 20 rows in app.py?",
+        "71. How does the safe_float helper prevent crashes when converting fundamentals?",
+        "72. What happens if no stocks pass the filters (empty display DataFrame)?",
+        "73. How does the app handle a ticker whose chart data returns empty for both 6m and 1y?",
+        "74. What default values are used when fundamentals are missing, and are they sensible?",
+        "75. How does IndicatorEngine handle empty DataFrames in extract_current_features?",
+        "76. What happens in model_trainer if no training data can be collected?",
+        "77. How are NaN values in indicator calculations (e.g. RSI) handled?",
+        "78. What edge cases exist in the fallback scoring formula (e.g. negative PE)?",
+    ]),
+    ("8. Testing & Code Quality", [
+        "79. What testing framework is used, and how do you run the test suite?",
+        "80. What does test_load_universe_structure verify, and why does it use pytest.skip?",
+        "81. How does test_technical_indicators_flat_input simulate a flat market?",
+        "82. Explain the no-lookahead test in test_model_trainer.py and why it matters.",
+        "83. How does the fake OHLCV generator avoid hitting the network during tests?",
+        "84. What boundary conditions does test_scorer_boundary_constraints check?",
+        "85. What testing gaps exist in this project? What would you add?",
+        "86. How could you use mocking to test fetch_fundamental_metrics without a live API?",
+    ]),
+    ("9. Deployment, Tooling & Productionization", [
+        "87. How is the app launched, and what port does it use in launch_streamlit.py?",
+        "88. What is the purpose of the health check loop in launch_streamlit.py?",
+        "89. Explain the role of the .bat file and the launcher logs.",
+        "90. How would you containerize this app with Docker? What would the Dockerfile contain?",
+        "91. How would you deploy this to the cloud (e.g. Streamlit Cloud, AWS, Heroku)?",
+        "92. How would you manage the MARKETAUX_API_KEY securely in production?",
+        "93. What CI/CD steps would you add for this project?",
+        "94. How would you handle secrets and environment-specific configuration?",
+    ]),
+    ("10. Financial Domain & Design Decisions", [
+        "95. Why is a disclaimer ('not financial advice') included? What are the ethics here?",
+        "96. What does the 'Top 50' ranking actually represent, and how is it derived?",
+        "97. How would you explain the difference between technical and fundamental analysis as used here?",
+        "98. What are the main limitations of using daily historical data + indicators for prediction?",
+        "99. How could market regime changes (bull vs bear) affect model performance?",
+        "100. If you were to add a new feature (e.g. options data, macro indicators), how would you?",
+        "101. How would you backtest this scoring strategy and measure its risk-adjusted returns?",
+        "102. What ethical and regulatory concerns arise from an AI stock-picking tool?",
+    ]),
+]
+
+
+class QuestionPDF(FPDF):
+    def header(self):
+        if self.page_no() > 1:
+            self.set_font("Helvetica", "I", 8)
+            self.set_text_color(150)
+            self.cell(0, 6, "AI-Driven Stock Screener (NSE 500) - Interview Questions", align="C")
+            self.ln(4)
+            self.set_draw_color(200)
+            self.set_line_width(0.3)
+            self.line(self.l_margin, self.get_y(), self.w - self.r_margin, self.get_y())
+            self.ln(2)
+
+    def footer(self):
+        self.set_y(-15)
+        self.set_font("Helvetica", "I", 8)
+        self.set_text_color(150)
+        self.cell(0, 10, f"Page {self.page_no()}", align="C")
+
+
+pdf = QuestionPDF(format="A4")
+pdf.set_auto_page_break(auto=True, margin=18)
+pdf.set_margins(15, 15, 15)
+
+# Title page
+pdf.add_page()
+pdf.ln(30)
+pdf.set_font("Helvetica", "B", 24)
+pdf.set_text_color(20, 60, 120)
+pdf.cell(0, 12, "AI-Driven Stock Screener", align="C", ln=True)
+pdf.set_font("Helvetica", "", 16)
+pdf.set_text_color(60)
+pdf.cell(0, 10, "(NSE 500 News Filter)", align="C", ln=True)
+pdf.ln(8)
+pdf.set_font("Helvetica", "B", 14)
+pdf.set_text_color(20, 60, 120)
+pdf.cell(0, 10, "~100 Interview Questions", align="C", ln=True)
+pdf.ln(6)
+pdf.set_font("Helvetica", "", 11)
+pdf.set_text_color(80)
+pdf.cell(0, 6, "For candidates & interviewers exploring this project", align="C", ln=True)
+pdf.ln(12)
+pdf.set_draw_color(20, 60, 120)
+pdf.set_line_width(0.8)
+pdf.line(40, pdf.get_y(), pdf.w - 40, pdf.get_y())
+
+# Table of contents
+pdf.ln(14)
+pdf.set_font("Helvetica", "B", 13)
+pdf.set_text_color(20, 60, 120)
+pdf.cell(0, 8, "Contents", align="C", ln=True)
+pdf.ln(4)
+pdf.set_font("Helvetica", "", 11)
+pdf.set_text_color(50)
+for theme, qs in DATA:
+    pdf.cell(0, 7, f"{theme}  ({len(qs)} questions)", ln=True)
+
+# Body
+for theme, qs in DATA:
+    pdf.add_page()
+    pdf.set_font("Helvetica", "B", 15)
+    pdf.set_text_color(20, 60, 120)
+    pdf.multi_cell(0, 8, theme)
+    pdf.set_draw_color(20, 60, 120)
+    pdf.set_line_width(0.6)
+    pdf.line(pdf.l_margin, pdf.get_y() + 1, pdf.w - pdf.r_margin, pdf.get_y() + 1)
+    pdf.ln(5)
+
+    pdf.set_font("Helvetica", "", 11)
+    pdf.set_text_color(30)
+    for q in qs:
+        pdf.multi_cell(0, 6, q)
+        pdf.ln(2)
+
+pdf.output(OUT_PATH)
+print(f"PDF generated: {OUT_PATH} ({pdf.page_no()} pages, total questions: {sum(len(q) for _, q in DATA)})")
